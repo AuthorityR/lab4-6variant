@@ -1,0 +1,64 @@
+import numpy as np
+from scipy.optimize import minimize
+
+# Дані акцій (прикладові)
+expected_returns = np.array([0.12, 0.18, 0.15, 0.10])  # очікувана дохідність для A1, A2, A3, A4
+cov_matrix = np.array([
+    [0.10, 0.02, 0.04, 0.01],
+    [0.02, 0.08, 0.02, 0.02],
+    [0.04, 0.02, 0.12, 0.03],
+    [0.01, 0.02, 0.03, 0.07]
+])  # коваріаційна матриця для A1, A2, A3, A4
+
+# Функція для розрахунку ризику портфеля
+def portfolio_risk(weights, cov_matrix):
+    return np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+
+# Функція корисності для портфеля з урахуванням RF
+def portfolio_utility(weights, expected_returns, rf, cov_matrix):
+    portfolio_return = np.dot(weights, expected_returns)
+    portfolio_volatility = portfolio_risk(weights, cov_matrix)
+    # Розрахунок корисності
+    return -(portfolio_return - rf) / portfolio_volatility  # мінімізуємо від'ємну корисність
+
+# Параметри для задачі
+rf_values = [0, -10, -100]  # різні значення RF
+
+# Збереження оптимальних ваг і результатів для кожного RF
+results = {}
+for rf in rf_values:
+    # Обмеження: ваги повинні в сумі дорівнювати 1, кожна вага між 0 і 1
+    constraints = ({'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1})
+    bounds = tuple((0, 1) for _ in range(len(expected_returns)))
+
+    # Початкові ваги для оптимізації
+    initial_weights = np.array([0.25, 0.25, 0.25, 0.25])
+
+    # Оптимізація
+    optimal = minimize(portfolio_utility, initial_weights, args=(expected_returns, rf, cov_matrix),
+                       method='SLSQP', bounds=bounds, constraints=constraints)
+    
+    # Збереження результатів
+    if optimal.success:
+        optimal_weights = optimal.x
+        portfolio_ret = np.dot(optimal_weights, expected_returns)
+        portfolio_vol = portfolio_risk(optimal_weights, cov_matrix)
+        results[rf] = {
+            "weights": optimal_weights,
+            "expected_return": portfolio_ret,
+            "risk": portfolio_vol,
+            "utility": -(optimal.fun)  # повертаємо до додатної корисності
+        }
+    else:
+        results[rf] = "Optimization failed"
+
+# Виведення результатів
+for rf, result in results.items():
+    print(f"\nRF = {rf}:")
+    if result != "Optimization failed":
+        print("Ваги акцій в портфелі:", result["weights"])
+        print("Очікувана дохідність портфеля:", result["expected_return"])
+        print("Ризик портфеля:", result["risk"])
+        print("Корисність портфеля:", result["utility"])
+    else:
+        print("Оптимізація не вдалася")
